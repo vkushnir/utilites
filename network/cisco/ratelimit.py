@@ -1,6 +1,6 @@
 #!/usr/bin/python
 """
- This python module is used for 
+ This python module is used for
  generate rate_limit calculations.
 
  Written by : Vladimir Kushnir
@@ -13,6 +13,9 @@
     ratelimit.py 1024
 
 """
+# Import required python libraries
+import sys
+from optparse import OptionParser
 
 __version__ = "1.00"
 __copyright__ = "Vladimir Kushnir aka Kvantum i(c)2016"
@@ -21,18 +24,14 @@ __all__ = ['get_param',
            'calc',
            'out']
 
-
-# Import required python libraries
-from sys import exit
-from optparse import OptionParser
-
 def get_param(arguments=None):
+    """Parse Command-Line parameters"""
     parser = OptionParser(usage="%prog <kbps> [options]", version="%prog "+__version__)
     parser.set_defaults(burst_time=1.5, mode='cisco-rt')
     #parser.add_option('-l', '--rate-limit', dest='kbps', type="int", help="Rate limit in kbps")
-    parser.add_option('-t', '--burst-time', dest='burst_time', type="float", 
+    parser.add_option('-t', '--burst-time', dest='burst_time', type='float',
                       help="Burst time in seconds")
-    parser.add_option('-m', '--output-mode', dest='mode', 
+    parser.add_option('-m', '--output-mode', dest='mode', choices=['cisco-rt', 'cisco-av'],
                       help="Output mode ('cisco-rt'/'cisco-av')")
 
     (opt, args) = parser.parse_args(arguments)
@@ -43,6 +42,7 @@ def get_param(arguments=None):
     return (int(args[0]), opt.burst_time, opt.mode)
 
 def calc(kbps, burst_time=1.5):
+    """Calculate Normal and Max Burst values"""
     bps = kbps * 1000
     burst_normal = int(round(bps / 8 * burst_time, 0))
     burst_max = 2 * burst_normal
@@ -50,6 +50,7 @@ def calc(kbps, burst_time=1.5):
     return (burst_normal, burst_max)
 
 def out(kbps, burst_normal, burst_max, burst_time, mode='cisco-rt'):
+    """Print out formatted strings with calculated values"""
     if mode == 'cisco-rt':
         txt = """!
   bandwidth {0:d}
@@ -64,6 +65,7 @@ def out(kbps, burst_normal, burst_max, burst_time, mode='cisco-rt'):
         sys.exit("Wrong output mode!")
 
 def main():
+    """Main procedure"""
     (kbps, burst_time, mode) = get_param()
     (burst_normal, burst_max) = calc(kbps, burst_time)
     out(kbps, burst_normal, burst_max, burst_time, mode)
