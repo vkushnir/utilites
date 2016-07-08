@@ -5,7 +5,7 @@
 
  Written by : Vladimir Kushnir
  Created date: 16.06.2016
- Last modified: 16.06.2016
+ Last modified: 08.07.2016
  Tested with : Python 2.7.11
 
     Simple usage example:
@@ -16,13 +16,47 @@
 # Import required python libraries
 import sys
 from optparse import OptionParser
+from platform import system
+# Windows Clipboard Support
+import ctypes
 
-__version__ = "1.00"
+OpenClipboard = ctypes.windll.user32.OpenClipboard
+EmptyClipboard = ctypes.windll.user32.EmptyClipboard
+GetClipboardData = ctypes.windll.user32.GetClipboardData
+SetClipboardData = ctypes.windll.user32.SetClipboardData
+CloseClipboard = ctypes.windll.user32.CloseClipboard
+CF_UNICODETEXT = 13
+
+GlobalAlloc = ctypes.windll.kernel32.GlobalAlloc
+GlobalLock = ctypes.windll.kernel32.GlobalLock
+GlobalUnlock = ctypes.windll.kernel32.GlobalUnlock
+GlobalSize = ctypes.windll.kernel32.GlobalSize
+GMEM_MOVEABLE = 0x0002
+GMEM_ZEROINIT = 0x0040
+
+unicode_type = type(u'')
+
+__version__ = "1.01"
 __copyright__ = "Vladimir Kushnir aka Kvantum i(c)2016"
 
 __all__ = ['get_param',
            'calc',
            'out']
+
+def put_clipboard(msg):
+    """Put message to clipboard"""
+    if system() == 'Windows':
+        if not isinstance(msg, unicode_type):
+            msg = msg.decode('mbcs')
+        data = msg.encode('utf-16le')
+        OpenClipboard(None)
+        EmptyClipboard()
+        handle = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, len(data) + 2)
+        pcontents = GlobalLock(handle)
+        ctypes.memmove(pcontents, data, len(data))
+        GlobalUnlock(handle)
+        SetClipboardData(CF_UNICODETEXT, handle)
+        CloseClipboard()
 
 def get_param(arguments=None):
     """Parse Command-Line parameters"""
@@ -57,12 +91,15 @@ def out(kbps, burst_normal, burst_max, burst_time, mode='cisco-rt'):
     rate-limit input {1:d} {2:d} {3:d} conform-action transmit exceed-action drop
     rate-limit output {1:d} {2:d} {3:d} conform-action transmit exceed-action drop
 !"""
-        print txt.format(kbps, kbps*1000, burst_normal, burst_max)
+        txt = txt.format(kbps, kbps*1000, burst_normal, burst_max)
+        msg = txt
     elif mode == 'cisco-av':
-        txt = "\n  QU;{0:d};{1:d};{2:d};D;{0:d};{1:d};{2:d}\n"
-        print txt.format(kbps*1000, burst_normal, burst_max)
+        txt = "\n  QU;{0:d};{1:d};{2:d};D;{0:d};{1:d};{2:d}\n".format(kbps*1000, burst_normal, burst_max)
+        msg = "QU;{0:d};{1:d};{2:d};D;{0:d};{1:d};{2:d}".format(kbps*1000, burst_normal, burst_max)
     else:
         sys.exit("Wrong output mode!")
+    print txt
+    put_clipboard(msg)
 
 def main():
     """Main procedure"""
