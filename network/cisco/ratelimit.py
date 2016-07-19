@@ -15,7 +15,7 @@
 """
 # Import required python libraries
 import sys
-from optparse import OptionParser
+from optparse import OptionParser, OptionGroup
 from platform import system
 # Windows Clipboard Support
 import ctypes
@@ -65,15 +65,21 @@ def get_param(arguments=None):
     #parser.add_option('-l', '--rate-limit', dest='kbps', type="int", help="Rate limit in kbps")
     parser.add_option('-t', '--burst-time', dest='burst_time', type='float',
                       help="Burst time in seconds")
-    parser.add_option('-m', '--output-mode', dest='mode', choices=['cisco-rt', 'cisco-av'],
-                      help="Output mode ('cisco-rt'/'cisco-av')")
+    parser.add_option('-m', '--output-mode', dest='mode', choices=['cisco-rt', 'cisco-av', 'cisco-sp'],
+                      help="Output mode ('cisco-rt'/'cisco-av'/'cisco-sp')")
+    group = OptionGroup(parser, "Additional options")
+    group.add_option('--name', dest='name', help="Name for policy")
+    parser.add_option_group(group)
 
     (opt, args) = parser.parse_args(arguments)
 
     if len(args) != 1:
         parser.error("You must cpecify kbps rate!")
+    elif opt.mode == 'cisco-sp':
+        if opt.name is None:
+            parser.error("You must cpecify name for 'cisco-sp'!")
 
-    return (int(args[0]), opt.burst_time, opt.mode)
+    return (int(args[0]), opt.burst_time, opt)
 
 def calc(kbps, burst_time=1.5):
     """Calculate Normal and Max Burst values"""
@@ -83,9 +89,9 @@ def calc(kbps, burst_time=1.5):
 
     return (burst_normal, burst_max)
 
-def out(kbps, burst_normal, burst_max, burst_time, mode='cisco-rt'):
+def out(kbps, burst_normal, burst_max, burst_time, opt):
     """Print out formatted strings with calculated values"""
-    if mode == 'cisco-rt':
+    if opt.mode == 'cisco-rt':
         txt = """!
   bandwidth {0:d}
     rate-limit input {1:d} {2:d} {3:d} conform-action transmit exceed-action drop
@@ -93,9 +99,24 @@ def out(kbps, burst_normal, burst_max, burst_time, mode='cisco-rt'):
 !"""
         txt = txt.format(kbps, kbps*1000, burst_normal, burst_max)
         msg = txt
-    elif mode == 'cisco-av':
+    elif opt.mode == 'cisco-av':
         txt = "\n  QU;{0:d};{1:d};{2:d};D;{0:d};{1:d};{2:d}\n".format(kbps*1000, burst_normal, burst_max)
         msg = "QU;{0:d};{1:d};{2:d};D;{0:d};{1:d};{2:d}".format(kbps*1000, burst_normal, burst_max)
+    elif opt.mode == 'cisco-sp':
+        msg = """!
+policy-map {0:s}
+ class class-default
+  police cir {1:d} bc {2:d} be {3:d}
+   conform-action transmit
+   exceed-action drop
+!"""
+        txt = msg + """
+  bandwidth {4:d}
+  service-policy input {0:s}
+  service-policy output {0:s}
+!"""
+        txt = txt.format(opt.name, kbps*1000, burst_normal, burst_max, kbps)
+        msg = msg.format(opt.name, kbps*1000, burst_normal, burst_max)
     else:
         sys.exit("Wrong output mode!")
     print txt
@@ -103,9 +124,9 @@ def out(kbps, burst_normal, burst_max, burst_time, mode='cisco-rt'):
 
 def main():
     """Main procedure"""
-    (kbps, burst_time, mode) = get_param()
+    (kbps, burst_time, opt) = get_param()
     (burst_normal, burst_max) = calc(kbps, burst_time)
-    out(kbps, burst_normal, burst_max, burst_time, mode)
+    out(kbps, burst_normal, burst_max, burst_time, opt)
 
 if __name__ == "__main__":
     main()
